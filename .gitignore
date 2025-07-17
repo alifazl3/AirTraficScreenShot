@@ -29,3 +29,4 @@ composer.lock
 /redis-stable
 composer.phar
 dump.rdb
+screenshot.png
