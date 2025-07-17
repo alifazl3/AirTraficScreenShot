@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  screenshot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flightradar-screenshot
+    volumes:
+      - ./:/app
+    working_dir: /app
+    ports:
+      - "5000:5000"
+    environment:
+      - CHROME_BIN=/usr/bin/google-chrome
+      - CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # mem_limit: 4g 
+    # cpus: 1 
