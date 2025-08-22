@@ -4,14 +4,14 @@ set -euo pipefail
 export DISPLAY="${DISPLAY:-:99}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
 
-# اطمینان از وجود دایرکتوری‌های لازم
+# Ensure required directories exist
 mkdir -p /var/log /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix || true
 
-# پاک کردن لاک/سوکت‌های قبلی اگر باقی مانده‌اند
+# Remove previous lock/socket files if they remain
 rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 || true
 
-# استارت Xorg با درایور dummy و اکستنشن‌های لازم
+# Start Xorg with dummy driver and required extensions
 Xorg "$DISPLAY" \
   -config /etc/X11/xorg.conf.d/10-headless.conf \
   -noreset \
@@ -21,7 +21,7 @@ Xorg "$DISPLAY" \
 
 XORG_PID=$!
 
-# صبر تا بالا آمدن نمایشگر
+# Wait until the display comes up
 tries=20
 until xdpyinfo >/dev/null 2>&1; do
   sleep 0.3
@@ -33,10 +33,10 @@ until xdpyinfo >/dev/null 2>&1; do
   fi
 done
 
-# نمایش اطلاعات GLX (برای دیباگ)
+# Show GLX info (for debugging)
 echo "---- GLX Info (renderer/version) ----"
 glxinfo | grep -E "OpenGL renderer|OpenGL version" || true
 echo "-------------------------------------"
 
-# اجرای برنامه
+# Run the program
 exec python main.py

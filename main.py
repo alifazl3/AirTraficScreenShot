@@ -10,17 +10,17 @@ from selenium.webdriver.support import expected_conditions as EC
 
 app = Flask(__name__)
 
-# ====== تنظیمات ======
+# ====== Settings ======
 SCREENSHOT_PATH = os.getenv("SHOT_PATH", "screenshot.png")
 TARGET_URL = os.getenv("TARGET_URL", "https://www.flightradar24.com/32.0,50.0/5")
-REFRESH_EVERY = int(os.getenv("REFRESH_EVERY", "60"))   # ثانیه
-SHOT_TTL = int(os.getenv("SHOT_TTL", "180"))            # حداکثر قدمت فایل
-NAV_TIMEOUT = int(os.getenv("NAV_TIMEOUT", "25"))       # سقف هر ناوبری (برای جلوگیری از 524)
-WINDOW = os.getenv("WINDOW", "1440,900")                # 1920,1080 اگر کیفیت بالاتر خواستی
+REFRESH_EVERY = int(os.getenv("REFRESH_EVERY", "60"))   # seconds
+SHOT_TTL = int(os.getenv("SHOT_TTL", "180"))            # maximum file age
+NAV_TIMEOUT = int(os.getenv("NAV_TIMEOUT", "25"))       # max navigation time (to avoid 524)
+WINDOW = os.getenv("WINDOW", "1440,900")                # 1920,1080 if you want higher resolution
 
-_last_ok = None                   # datetime آخرین شات موفق
-_state_lock = threading.Lock()    # برای خواندن/نوشتن _last_ok
-_shot_lock = threading.Lock()     # جلوگیری از اجرای هم‌زمان کروم
+_last_ok = None                   # datetime of the last successful shot
+_state_lock = threading.Lock()    # for reading/writing _last_ok
+_shot_lock = threading.Lock()     # prevent concurrent Chrome runs
 
 
 def _env(name, default=None, alts=()):
@@ -39,7 +39,7 @@ def _build_driver(user_data_dir: str):
     opts = Options()
     opts.binary_location = chrome_bin
 
-    # مهم: ANGLE → SwiftShader (WebGL2 نرم‌افزاری اما پایدار داخل کانتینر)
+    # Important: ANGLE → SwiftShader (software WebGL2, but stable inside container)
     flags = [
         "--no-sandbox",
         "--disable-dev-shm-usage",
@@ -49,10 +49,10 @@ def _build_driver(user_data_dir: str):
         "--enable-webgl",
         "--enable-webgl2",
         "--ignore-gpu-blocklist",
-        # توجه: عمداً --disable-gpu و --use-gl=desktop را نمی‌گذاریم
+        # Note: we intentionally do not add --disable-gpu or --use-gl=desktop
         "--no-first-run",
         "--no-default-browser-check",
-        f"--user-data-dir={user_data_dir}",  # پروفایل یکتا
+        f"--user-data-dir={user_data_dir}",  # unique profile
         "--profile-directory=Default",
     ]
     extra = os.getenv("CHROME_FLAGS", "").split()
@@ -116,9 +116,9 @@ def _has_webgl2(driver):
 
 
 def take_screenshot_once():
-    """اجرای واحد با پروفایل موقّت + قفل؛ مناسب Cloudflare و پایدار داخل کانتینر."""
+    """Single run with temporary profile + lock; suitable for Cloudflare and stable inside container."""
     global _last_ok
-    with _shot_lock:  # فقط یک کروم در هر لحظه
+    with _shot_lock:  # only one Chrome at a time
         start = time.time()
         user_dir = tempfile.mkdtemp(prefix="chrome-profile-")
         driver = None
@@ -135,7 +135,7 @@ def take_screenshot_once():
             supported = _has_webgl2(driver)
             app.logger.info("WebGL2 supported (swiftshader): %s", supported)
 
-            time.sleep(2)  # کمی زمان برای رندر
+            time.sleep(2)  # a little time for rendering
             driver.save_screenshot(SCREENSHOT_PATH)
             with _state_lock:
                 _last_ok = datetime.utcnow()
@@ -170,7 +170,7 @@ def screenshot():
     with _state_lock:
         fresh = _last_ok and (datetime.utcnow() - _last_ok) <= timedelta(seconds=SHOT_TTL)
     if not fresh or not os.path.exists(SCREENSHOT_PATH):
-        take_screenshot_once()  # تلاش سریع
+        take_screenshot_once()  # quick attempt
     if os.path.exists(SCREENSHOT_PATH):
         return send_file(SCREENSHOT_PATH, mimetype="image/png")
     return jsonify(error="no screenshot available yet"), 503

@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     x11-utils \
   && rm -rf /var/lib/apt/lists/*
 
-# Chrome for Testing + Chromedriver (هم‌نسخه)
+# Chrome for Testing + Chromedriver
 RUN set -eux; \
   curl -fsSL -o /tmp/versions.json https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json; \
   VERSION="$(python3 -c "import json; print(json.load(open('/tmp/versions.json'))['channels']['Stable']['version'])")"; \
