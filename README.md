@@ -176,5 +176,5 @@ This project is functional but can be enhanced. Potential next steps:
 
 ## Screenshots:
 
-![screenshot](screenshot.png)
+![screenshot](screenshot_sample.png)
 
