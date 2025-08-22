@@ -1,67 +1,48 @@
 FROM python:3.12-slim
 
-LABEL maintainer="Ali Fazlollahi"
+ARG DEBIAN_FRONTEND=noninteractive
 
-# نصب ابزارهای مورد نیاز و Chrome وابسته‌ها
-RUN apt-get update && apt-get install -y \
-    wget \
-    unzip \
-    gnupg \
-    curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl unzip wget \
     fonts-liberation \
-    libglib2.0-0 \
-    libnss3 \
-    libgconf-2-4 \
-    libxss1 \
-    libasound2 \
-    libxtst6 \
-    libx11-xcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxi6 \
-    libgbm1 \
-    libxrandr2 \
-    libatk1.0-0 \
-    libgtk-3-0 \
-    mesa-utils \
-    xvfb \
+    libasound2 libatk-bridge2.0-0 libatk1.0-0 libc6 libdrm2 \
+    libgtk-3-0 libnspr4 libnss3 libxcb1 libxcomposite1 libxdamage1 libxfixes3 \
+    libxrandr2 libxkbcommon0 libx11-6 libx11-xcb1 libxext6 libxi6 libxrender1 \
+    libgbm1 libpango-1.0-0 libpangocairo-1.0-0 libatspi2.0-0 xdg-utils \
+    libgl1-mesa-dri libglx-mesa0 libgles2 libegl1 \
+    xserver-xorg-core xserver-xorg-video-dummy mesa-utils \
     x11-utils \
-    && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*
 
-# نصب Google Chrome (نسخه Stable)
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
-    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
-    apt-get update && apt-get install -y google-chrome-stable && \
-    rm -rf /var/lib/apt/lists/*
+# Chrome for Testing + Chromedriver (هم‌نسخه)
+RUN set -eux; \
+  curl -fsSL -o /tmp/versions.json https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json; \
+  VERSION="$(python3 -c "import json; print(json.load(open('/tmp/versions.json'))['channels']['Stable']['version'])")"; \
+  BASE="https://storage.googleapis.com/chrome-for-testing-public"; \
+  curl -fsSL -o /tmp/chromedriver.zip "$BASE/${VERSION}/linux64/chromedriver-linux64.zip"; \
+  curl -fsSL -o /tmp/chrome.zip       "$BASE/${VERSION}/linux64/chrome-linux64.zip"; \
+  unzip -q /tmp/chromedriver.zip -d /opt/; \
+  unzip -q /tmp/chrome.zip -d /opt/; \
+  mv /opt/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver; \
+  ln -s /opt/chrome-linux64/chrome /usr/local/bin/google-chrome; \
+  ln -s /opt/chrome-linux64/chrome /usr/bin/google-chrome || true; \
+  chmod +x /usr/local/bin/chromedriver /usr/local/bin/google-chrome; \
+  rm -rf /opt/chromedriver-linux64 /tmp/*.zip /tmp/versions.json
 
-# نصب ChromeDriver هماهنگ با نسخه‌ی مرورگر
-RUN CHROME_VERSION=$(google-chrome-stable --version | grep -oP '\d+\.\d+\.\d+') && \
-    DRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json" | \
-      python3 -c "import sys, json; print(json.load(sys.stdin)['channels']['Stable']['version'])") && \
-    wget -O /tmp/chromedriver.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${DRIVER_VERSION}/linux64/chromedriver-linux64.zip && \
-    unzip /tmp/chromedriver.zip -d /tmp/ && \
-    mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver && \
-    chmod +x /usr/local/bin/chromedriver
+ENV DISPLAY=:99 \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    CHROME_BIN=/usr/local/bin/google-chrome \
+    CHROMEDRIVER=/usr/local/bin/chromedriver \
+    XDG_RUNTIME_DIR=/tmp \
+    PYTHONUNBUFFERED=1
 
-# نصب پکیج‌های پایتون مورد نیاز
-RUN pip install --no-cache-dir \
-    flask \
-    selenium \
-    webdriver-manager \
-    requests \
-    pandas
+WORKDIR /app
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# متغیرهای محیطی برای Chrome و Chromedriver
-ENV CHROME_BIN="/usr/bin/google-chrome"
-ENV CHROMEDRIVER_PATH="/usr/local/bin/chromedriver"
+COPY 10-headless.conf /etc/X11/xorg.conf.d/10-headless.conf
+COPY . /app
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# باز کردن پورت Flask
-EXPOSE 5000
-
-RUN pip install --no-cache-dir flask selenium gunicorn
-
-# اجرای برنامه‌ی Flask با Xvfb برای فعال‌سازی WebGL
-CMD xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" gunicorn -b 0.0.0.0:5000 main:app
-
-
+CMD ["/entrypoint.sh"]
