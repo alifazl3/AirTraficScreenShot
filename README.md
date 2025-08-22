@@ -172,4 +172,9 @@ This project is functional but can be enhanced. Potential next steps:
 
 - **Performance Tweaks**: Reduce refresh interval safely; use headless Chrome directly if possible (but WebGL may still need Xorg).
 
+- **Close sidebars in the app**: Before take the screenshot close all sidebars to expand view area
+
+## Screenshots:
+
+![screenshot](screenshot.png)
 
